@@ -186,6 +186,8 @@ http://localhost:5601
 
 ## 👤 Author
 
-*Sharon Kamensky* — Data Engineering & Analytics  
+Sharon Kamensky — B.Sc. in Mathematics (Statistics & Data Science)  
+Aspiring Data Analyst / Data Engineer  
 GitHub: https://github.com/SharonKamensky
+
 
