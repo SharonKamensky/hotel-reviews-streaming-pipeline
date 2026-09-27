@@ -4,14 +4,14 @@ import json
 import time
 import os
 
-# נתיב יחסי לתוך data/
+# Relative path into data/
 CSV_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'Hotel_Reviews.csv')
-CSV_PATH = os.path.abspath(CSV_PATH)  # שיהיה 100% מדויק מכל מקום
+CSV_PATH = os.path.abspath(CSV_PATH)  # resolve to an absolute path so it works from any directory
 
 KAFKA_BROKER = 'localhost:9092'
 TOPIC_NAME = 'hotel-reviews'
 
-# קריאת הדאטה
+# Load the data
 df = pd.read_csv(CSV_PATH)
 
 producer = KafkaProducer(
@@ -20,12 +20,12 @@ producer = KafkaProducer(
 )
 
 for i, row in df.iterrows():
-    if i >= 1000:  # להגביל ל-1000 הודעות לבדיקה (אפשר לשנות/להוריד)
+    if i >= 1000:  # cap at 1000 messages for testing (adjust or remove)
         break
-    message = row.to_dict()  # כל העמודות!
+    message = row.to_dict()  # all columns
     producer.send(TOPIC_NAME, value=message)
     print(f"Sent: {message}")
-    time.sleep(0.1)  # רק לשם הדגמה, אפשר להוריד
+    time.sleep(0.1)  # throttle to simulate a live stream (can be removed)
 
 producer.flush()
 producer.close()
