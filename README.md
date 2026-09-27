@@ -1,92 +1,77 @@
 # Hotel Reviews Real-Time Streaming Pipeline
 
-A full real-time big-data pipeline for collecting, processing, analyzing, and visualizing hotel reviews using **Kafka**, **Spark Streaming**, **Elasticsearch**, and **Kibana**.
+An end-to-end real-time pipeline that turns a continuous stream of hotel reviews into live business insight, built with **Docker**, **Kafka**, **Spark Structured Streaming**, **Elasticsearch** and **Kibana**.
+
+![Kibana dashboard](docs/images/kibana-dashboard.png)
 
 ---
 
 ## 🎯 Business Motivation
 
-Hotels and travel companies receive **massive volumes of online customer reviews** every day.  
-These reviews contain valuable insights about:
+Hotels and travel companies receive **massive volumes of online reviews** every day. Those reviews show how satisfied customers are, how service quality is trending, and which complaints keep recurring. Without automation, most of that insight is missed or found too late.
 
-- Customer satisfaction  
-- Service quality  
-- Hotel performance  
-- Trending issues or complaints  
-- Geographic behavior differences  
+This project turns raw reviews into **real-time, actionable insight**, enabling:
 
-However, companies typically struggle to operationalize this data because:
-
-- Reviews arrive continuously and require **real-time processing**
-- Manual analysis is slow and unscalable
-- Unstructured text data is hard to analyze without automation
-- Trends and anomalies are often detected too late
-
-This project demonstrates how a modern data engineering pipeline converts raw reviews into **real-time actionable insights**, enabling:
-
-### 💼 Business Value
-- Early detection of satisfaction drops  
-- Identifying operational issues in hotels  
-- Monitoring geographic reviewer behavior  
-- Extracting trending keywords (positive & negative)  
-- Supporting data-driven strategic decisions  
-- Reducing manual analysis time from hours → seconds  
-
-This real-time solution reflects how modern hospitality companies improve customer experience at scale.
-
----
-
-## 📌 Project Overview
-
-This project implements an end-to-end streaming pipeline for:
-
-- Ingesting 500K+ hotel reviews  
-- Streaming text into Kafka topics  
-- Processing data in real time using Spark Streaming  
-- Cleaning & enriching each review  
-- Indexing structured results into Elasticsearch  
-- Displaying insights on live Kibana dashboards  
-
-The goal is to simulate a **production-grade data engineering environment**.
+- Early detection of satisfaction drops
+- Identification of operational issues at specific hotels
+- Monitoring of reviewer geography and behavior
+- Tracking of trending positive and negative keywords
+- Analysis that takes seconds instead of hours of manual reading
 
 ---
 
 ## 🧱 System Architecture
 
+```mermaid
+flowchart LR
+    A[CSV<br/>515K hotel reviews] -->|producers/| B[(Kafka<br/>topic: hotel-reviews)]
+    B -->|consumers/es_indexer.py<br/>clean + index| C[(Elasticsearch)]
+    C --> D[Kibana<br/>live dashboard]
+    B -->|spark_app/<br/>Structured Streaming| E[Keyword & satisfaction<br/>analytics]
+    subgraph Docker Compose
+      B
+      C
+      D
+      E
+    end
 ```
-+------------+        +-----------+        +-----------------+        +-----------------+        +---------+
-|  Producer  | -----> |  Kafka    | -----> | Spark Streaming | -----> | Elasticsearch   | -----> | Kibana  |
-+------------+        +-----------+        +-----------------+        +-----------------+        +---------+
-        (Python + CSV input)           (Processes real-time reviews)   (Stores structured docs)   (Visual dashboards)
-```
+
+| Component | Role |
+|---|---|
+| **Producer** (`producers/send_all_columns_to_kafka.py`) | Reads the reviews CSV with pandas and publishes each row as a JSON message to the `hotel-reviews` topic, simulating a live stream |
+| **Kafka** (KRaft mode) | Buffers the stream and decouples ingestion from processing, so each consumer reads at its own pace |
+| **Elasticsearch indexer** (`consumers/es_indexer.py`) | Cleans each review (missing values, types, dates) and bulk-indexes it with a deterministic `Review_ID`, so re-ingestion never creates duplicates |
+| **Spark Structured Streaming** (`spark_app/`) | Parses the JSON stream against a schema and computes per-hotel positive and negative keyword counts, average scores and monthly satisfaction |
+| **Elasticsearch + Kibana** | Full-text search, aggregations and the live dashboard |
+| **Debug consumer** (`consumers/print_reviews_consumer.py`) | Prints raw messages from the topic, for verifying the stream |
 
 ---
 
-## 🔄 Flow Explanation (Step-by-Step)
+## 📊 Dashboard & Insights
 
-1. **Producer (Python + Kafka)**  
-   - Reads raw hotel reviews from a large CSV  
-   - Sends each review into a Kafka topic `hotel-reviews`  
-   - Simulates real-time data streaming  
+**KPIs on a 20,000-review sample:** 20,000 reviews · 1,306 hotels · average score 8.38 · 2,874 reviews scored 9 or higher.
 
-2. **Kafka Broker**  
-   - Buffers and distributes messages  
-   - Fault-tolerant data delivery  
+![Dashboard examples](docs/images/dashboard-examples.png)
 
-3. **Spark Streaming Engine**  
-   - Consumes reviews in micro-batches  
-   - Cleans text, removes noise  
-   - Extracts structured fields  
-   - Prepares documents for indexing  
+- **Geographic concentration:** 71% of reviewers are from the UK, then the US (12%) and Australia (8%).
+- **Volume leaders:** the most-reviewed hotels are all in London, led by Britannia International Hotel Canary Wharf.
+- **What drives satisfaction:** *staff*, *location* and *room* lead positive reviews. *Room*, *small*, *breakfast* and *bathroom* lead negative ones. The room itself is the top driver of both praise and complaints.
 
-4. **Elasticsearch**  
-   - Stores structured JSON documents  
-   - Enables full-text search & aggregations  
+| Top positive words | Top negative words |
+|---|---|
+| ![](docs/images/top-positive-words.png) | ![](docs/images/top-negative-words.png) |
 
-5. **Kibana Dashboard**  
-   - Displays real-time analytics  
-   - KPIs, trends, demographics, keyword frequency  
-   - Top hotels by reviews, satisfaction trends, etc.
+---
+
+## 🧩 Challenges & Solutions
+
+| Challenge | Solution |
+|---|---|
+| Learning Kafka, Docker, Spark and Kibana from scratch | Built the multi-container environment with `docker-compose` and debugged listener, networking and configuration issues across services |
+| Duplicate reviews on re-ingestion | Generated a unique `Review_ID` per review and used it as the Elasticsearch document ID, so ingestion is **idempotent** |
+| Missing libraries inside containers | Centralized dependencies in `requirements.txt` |
+| Kibana not showing live data | Converted `Review_Date` to ISO format and adjusted Kibana's time filters |
+| Messy real-world text | Cleaning logic for missing values, placeholder text ("No Positive"/"No Negative") and inconsistent formatting |
 
 ---
 
@@ -94,100 +79,61 @@ The goal is to simulate a **production-grade data engineering environment**.
 
 ```
 hotel-reviews-streaming-pipeline/
-│
-├── consumers/               # Kafka consumers
-├── producers/               # Review stream producers
-├── spark_app/               # Spark Streaming job
-├── jars/                    # Kafka–Spark connector JARs
-├── docs/                    # Documentation
-│   └── Big_Data_Project.pdf # Full project PDF
-│
-├── docker-compose.yml       # Deploys Kafka, Zookeeper, ES, Kibana
-├── README.md                # This file
-└── LICENSE
+├── producers/
+│   └── send_all_columns_to_kafka.py   # CSV → Kafka
+├── consumers/
+│   ├── es_indexer.py                  # Kafka → clean → Elasticsearch
+│   └── print_reviews_consumer.py      # Debug consumer
+├── spark_app/
+│   ├── spark_kafka_nlp.py             # Streaming keyword counts (console)
+│   ├── spark_kafka_dashboard.py       # Streaming score/keyword/seasonal aggregates
+│   └── hotel_reviews_batch_analysis.py# Same analyses in batch mode on the CSV
+├── jars/                              # Spark–Kafka connector JARs
+├── docs/
+│   ├── Big_Data_Project.pdf           # Final project presentation
+│   └── images/                        # Dashboard screenshots
+├── docker-compose.yml                 # Kafka, Elasticsearch, Kibana, Spark
+└── requirements.txt
 ```
 
 ---
 
-## 📊 Dashboards (Kibana)
+## 🚀 How to Run
 
-The system provides real-time visualization dashboards, including:
+**Dataset:** [515K Hotel Reviews Data in Europe](https://www.kaggle.com/datasets/jiashenliu/515k-hotel-reviews-data-in-europe) (Kaggle). Save it as `data/Hotel_Reviews.csv`.
 
-### ⭐ Full KPI Overview
-- Total number of reviews  
-- Average rating  
-- Review volume over time  
-- Satisfaction index  
-
-### ⭐ Trends & Hotel Insights
-- Top hotels by number of reviews  
-- Review geographic distribution  
-- Rating trends over time  
-
-### ⭐ Keyword Intelligence
-- Top positive keywords  
-- Top negative keywords  
-- Word-frequency analysis  
-
-(Images can be added here once uploaded to the repo.)
-
----
-
-## 🚀 How to Run the Project
-
-### 1️⃣ Start the infrastructure
-```
+```bash
+# 1. Start the infrastructure (Kafka, Elasticsearch, Kibana, Spark)
 docker-compose up -d
+
+# 2. Install Python dependencies
+pip install -r requirements.txt
+
+# 3. Start the Elasticsearch indexer (leave it running)
+python consumers/es_indexer.py
+
+# 4. In another terminal, stream reviews into Kafka
+python producers/send_all_columns_to_kafka.py
+
+# 5. (Optional) Run the Spark streaming analytics inside the Spark container
+docker exec -it spark spark-submit --jars "/app/jars/*" /app/spark_app/spark_kafka_nlp.py
 ```
 
-This launches:
-- Kafka  
-- Zookeeper  
-- Elasticsearch  
-- Kibana  
+Then open Kibana at **http://localhost:5601**, create a data view for `hotel-reviews` with `Review_Date` as the time field, and build visualizations.
 
-### 2️⃣ Run the Producer
-```
-python producers/send_reviews_to_kafka.py
-```
-
-### 3️⃣ Run the Spark Streaming Job
-```
-python spark_app/spark_kafka_stream.py
-```
-
-### 4️⃣ Open Kibana Dashboard
-Navigate to:
-```
-http://localhost:5601
-```
+> Kafka advertises itself as `kafka:9092`. To connect from host-side Python scripts, add `127.0.0.1 kafka` to your hosts file.
 
 ---
 
-## 🛠 Technologies Used
+## 🔮 Next Steps: Adding AI
 
-- **Kafka** — Real-time ingestion  
-- **Zookeeper** — Kafka coordination  
-- **Spark Streaming** — Real-time processing  
-- **Elasticsearch** — Fast indexing & querying  
-- **Kibana** — Dashboards & visualization  
-- **Python** — Producers + consumer logic  
-
----
-
-## 📌 Future Improvements
-
-- Apply ML sentiment analysis  
-- Add anomaly detection for sudden rating drops  
-- Deploy with Kubernetes  
-- Scale Spark cluster for higher throughput  
+- **LLM aspect-based sentiment:** replace keyword counts with structured `{aspect, sentiment, severity}` extraction per review.
+- **Semantic search / RAG over reviews:** use Elasticsearch vector search so managers can ask *"What are guests saying about breakfast in our London hotels this month?"*
+- **Anomaly alerts:** notify the hotel when negative sentiment for an aspect spikes.
 
 ---
 
 ## 👤 Author
 
-Sharon Kamensky — B.Sc. in Mathematics (Statistics & Data Science)  
-Aspiring Data Analyst / Data Engineer  
+Sharon Kamensky, B.Sc. in Mathematics (Statistics & Data Science)
 GitHub: https://github.com/SharonKamensky
-
-

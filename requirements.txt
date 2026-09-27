@@ -1,0 +1,4 @@
+kafka-python
+elasticsearch>=8,<9
+pandas
+pyspark==3.5.1
