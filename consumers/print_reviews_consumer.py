@@ -1,12 +1,12 @@
 from kafka import KafkaConsumer
 import json
 
-# התחברות ל-Kafka (localhost)
+# Connect to Kafka (localhost)
 consumer = KafkaConsumer(
     'hotel-reviews',
     bootstrap_servers='localhost:9092',
     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-    auto_offset_reset='earliest',  # לקרוא גם הודעות ישנות מההתחלה
+    auto_offset_reset='earliest',  # also read existing messages from the beginning
     enable_auto_commit=True
 )
 
