@@ -3,15 +3,15 @@ from pyspark.sql.functions import col, lower, split, explode, to_date, month, av
 from pyspark.sql.types import StructType, StringType, DoubleType
 from pyspark.sql import functions as F
 
-# ---- הגדרת SparkSession ----
+# ---- SparkSession setup ----
 spark = SparkSession.builder \
     .appName("HotelReviewsBatchAnalysis") \
     .getOrCreate()
 
-# ---- קריאה מקובץ CSV (לא מ־Kafka) ----
+# ---- Read from CSV (batch, not Kafka) ----
 df = spark.read.option("header", True).csv("/app/spark_app/Hotel_Reviews.csv")
 
-# ---- רשימת Stopwords בסיסית ----
+# ---- Basic stopword list ----
 STOPWORDS = [
     "the", "and", "was", "with", "for", "you", "are", "but", "not", "all", "had", "our", "very",
     "this", "that", "they", "her", "him", "she", "his", "your", "its", "from", "out", "who",
@@ -21,13 +21,13 @@ STOPWORDS = [
     "an", "be", "or", "no", "a", "i"
 ]
 
-# ---- ניתוח 1: שביעות רצון ממוצעת לכל מלון ----
+# ---- Analysis 1: average satisfaction per hotel ----
 avg_score = df.groupBy("Hotel_Name").agg(
     F.avg(col("Reviewer_Score").cast(DoubleType())).alias("avg_score"),
     count("*").alias("num_reviews")
 ).orderBy(desc("avg_score"))
 
-# ---- ניתוח 2: מילים נפוצות חיוביות לכל מלון ----
+# ---- Analysis 2: most frequent positive words per hotel ----
 pos_words = df.select(
     "Hotel_Name",
     explode(split(lower(col("Positive_Review")), "\\W+")).alias("word")
@@ -37,7 +37,7 @@ pos_words = df.select(
 )
 pos_word_counts = pos_words.groupBy("Hotel_Name", "word").count().orderBy("Hotel_Name", desc("count"))
 
-# ---- ניתוח 3: מילים נפוצות שליליות לכל מלון ----
+# ---- Analysis 3: most frequent negative words per hotel ----
 neg_words = df.select(
     "Hotel_Name",
     explode(split(lower(col("Negative_Review")), "\\W+")).alias("word")
@@ -47,7 +47,7 @@ neg_words = df.select(
 )
 neg_word_counts = neg_words.groupBy("Hotel_Name", "word").count().orderBy("Hotel_Name", desc("count"))
 
-# ---- ניתוח 4: גרף שביעות רצון לאורך זמן (עונתי) ----
+# ---- Analysis 4: satisfaction over time (seasonality) ----
 df = df.withColumn("Review_Date", to_date("Review_Date", "M/d/yyyy"))
 df = df.withColumn("month", month("Review_Date"))
 
@@ -56,7 +56,7 @@ seasonal_score = df.groupBy("Hotel_Name", "month").agg(
     count("*").alias("monthly_num_reviews")
 ).orderBy("Hotel_Name", "month")
 
-# ---- שמירת התוצאות ל־CSV ----
+# ---- Save results to CSV ----
 avg_score.write.mode("overwrite").option("header", True).csv("/app/spark_app/outputs/avg_score/")
 pos_word_counts.write.mode("overwrite").option("header", True).csv("/app/spark_app/outputs/pos_words/")
 neg_word_counts.write.mode("overwrite").option("header", True).csv("/app/spark_app/outputs/neg_words/")

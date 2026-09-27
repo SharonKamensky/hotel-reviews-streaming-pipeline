@@ -3,12 +3,12 @@ from pyspark.sql.functions import from_json, col, lower, split, explode
 from pyspark.sql.types import StructType, StringType
 from pyspark.sql import functions as F
 
-# יצירת SparkSession
+# Create SparkSession
 spark = SparkSession.builder \
     .appName("HotelReviewsKafkaConsumer") \
     .getOrCreate()
 
-# קריאת נתונים מ־Kafka
+# Read the stream from Kafka
 df = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "kafka:9092") \
@@ -16,10 +16,10 @@ df = spark.readStream \
     .option("startingOffsets", "earliest") \
     .load()
 
-# דסיריאליזציה מה־Value של Kafka (JSON string)
+# Deserialize the Kafka value (JSON string)
 reviews = df.selectExpr("CAST(value AS STRING) as json_str")
 
-# סכימת JSON לפי העמודות האמיתיות בקובץ שלך
+# JSON schema matching the dataset columns
 review_schema = StructType() \
     .add("Hotel_Address", StringType()) \
     .add("Additional_Number_of_Scoring", StringType()) \
@@ -50,7 +50,7 @@ STOPWORDS = [
     "an", "be", "or", "no", "a", "i"
 ]
 
-# --- עיבוד טקסט חיובי (Positive_Review) ---
+# --- Process positive text (Positive_Review) ---
 pos_words = parsed.select(
     "Hotel_Name",
     explode(split(lower(col("Positive_Review")), "\\W+")).alias("word")
@@ -60,7 +60,7 @@ pos_words = parsed.select(
 )
 pos_word_counts = pos_words.groupBy("Hotel_Name", "word").count().orderBy(F.desc("count"))
 
-# --- עיבוד טקסט שלילי (Negative_Review) ---
+# --- Process negative text (Negative_Review) ---
 neg_words = parsed.select(
     "Hotel_Name",
     explode(split(lower(col("Negative_Review")), "\\W+")).alias("word")
@@ -70,7 +70,7 @@ neg_words = parsed.select(
 )
 neg_word_counts = neg_words.groupBy("Hotel_Name", "word").count().orderBy(F.desc("count"))
 
-# --- הדפסת תוצאות ---
+# --- Print results ---
 pos_query = pos_word_counts.writeStream \
     .outputMode("complete") \
     .format("console") \
